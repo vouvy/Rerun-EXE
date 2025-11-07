@@ -1,0 +1,63 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+.coverage
+htmlcov/
+.eggs/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Package managers & installers
+pip-wheel-metadata/
+Pipfile.lock
+poetry.lock
+
+# Build / distribution artifacts
+build/
+dist/
+*.whl
+
+# Logs and runtime data
+*.log
+logs/
+*.tmp
+*.bak
+*.old
+
+# IDE & editor settings
+.vscode/
+.idea/
+*.code-workspace
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Local environment overrides
+.env
+.env.*
+*.local
+
+# Swap & backup files
+*.swp
+*.swo
+*~
+
+# PowerShell history (if executed locally)
+*.pshistory
+
+# Optional: local scheduler exports (uncomment if not desired)
+# TaskScheduler/*.xml
