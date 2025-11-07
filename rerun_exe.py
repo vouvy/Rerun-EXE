@@ -275,6 +275,7 @@ class ProgramEntry:
         self.status_line = "Waiting"
         self.detail_line = ""
         self.observed_pids: set[int] = set()
+        self.process_handle: subprocess.Popen | None = None
         self.apply(payload)
 
     def apply(self, payload: dict) -> None:
@@ -337,8 +338,21 @@ class ProgramEntry:
             self.pending_restart = True
 
     def tick(self, now: float) -> None:
+        running_handle = False
+        handle_pid: int | None = None
+        if self.process_handle:
+            if self.process_handle.poll() is None:
+                running_handle = True
+                try:
+                    handle_pid = int(self.process_handle.pid)
+                except Exception:
+                    handle_pid = None
+            else:
+                self.process_handle = None
         self.observed_pids = ProcessInspector.image_pids(self.image_name)
-        running = bool(self.observed_pids)
+        if handle_pid:
+            self.observed_pids.add(handle_pid)
+        running = bool(self.observed_pids) or running_handle
         if not self.enabled:
             self.status_line = "Disabled"
             self.detail_line = self._compose_process_state(running, now)
@@ -389,8 +403,9 @@ class ProgramEntry:
             self.launch_failures += 1
             return False
         command = self._build_command()
+        process_handle: subprocess.Popen | None = None
         try:
-            subprocess.Popen(
+            process_handle = subprocess.Popen(
                 command,
                 cwd=self.working_directory,
                 creationflags=self._creation_flags(command),
@@ -418,6 +433,7 @@ class ProgramEntry:
                 )
                 self.launch_failures += 1
                 return False
+        self.process_handle = process_handle
         self.last_launch_time = now
         self.next_restart_time = now + self.delay_seconds
         self.last_launch_attempt = now
@@ -451,13 +467,33 @@ class ProgramEntry:
         return [path_str]
 
     def _creation_flags(self, command: list[str] | str) -> int:
-        CREATE_NEW_CONSOLE = 0x00000010
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        if isinstance(command, str):
-            return CREATE_NEW_CONSOLE
-        return CREATE_NEW_PROCESS_GROUP
+        CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
+        CREATE_NEW_PROCESS_GROUP = getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+        )
+        flags = CREATE_NEW_CONSOLE
+        if not isinstance(command, str):
+            flags |= CREATE_NEW_PROCESS_GROUP
+        return flags
+
+    def _terminate_tracked_process(self) -> None:
+        if not self.process_handle:
+            return
+        try:
+            if self.process_handle.poll() is None:
+                try:
+                    self.process_handle.terminate()
+                    self.process_handle.wait(timeout=5)
+                except Exception:
+                    try:
+                        self.process_handle.kill()
+                    except Exception:
+                        pass
+        finally:
+            self.process_handle = None
 
     def _terminate_all(self, now: float) -> bool:
+        self._terminate_tracked_process()
         active = ProcessInspector.image_pids(self.image_name)
         if not active:
             return True
